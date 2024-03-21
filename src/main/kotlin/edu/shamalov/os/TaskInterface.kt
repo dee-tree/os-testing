@@ -1,3 +1,5 @@
+package edu.shamalov.os
+
 interface TaskInterface {
     fun taskPreempt()
     fun taskStart()
