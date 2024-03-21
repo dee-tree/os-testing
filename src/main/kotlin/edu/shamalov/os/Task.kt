@@ -1,4 +1,4 @@
-
+package edu.shamalov.os
 private const val MIN_PRIORITY = 0
 private const val MAX_PRIORITY = 3
 
