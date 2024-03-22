@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "1.9.21"
+    kotlin("jvm") version "1.9.21" apply false
 }
 
 group = "edu.shamalov.os" // shamalov stands for "Shamaro & Sokolov"
@@ -9,14 +9,13 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    testImplementation("org.jetbrains.kotlin:kotlin-test")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.1.0")
+buildscript {
+    subprojects {
+        repositories {
+            mavenCentral()
+        }
+    }
 }
 
-tasks.test {
-    useJUnitPlatform()
-}
-kotlin {
-    jvmToolchain(20)
-}
+
+
