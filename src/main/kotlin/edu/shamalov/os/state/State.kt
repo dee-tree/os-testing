@@ -3,16 +3,29 @@ package edu.shamalov.os.state
 import edu.shamalov.os.event.Event
 
 sealed interface State {
+    val isBasic: Boolean
 
-    // TODO: Add succeededBy override for each state
-    fun succeededBy(atEvent: Event): State? = null
+    fun succeededBy(atEvent: Event): State = throw IllegalArgumentException("Unacceptable event $atEvent for the state $this")
 
-    data object Suspended : State, ExtendedState
-    data object Ready : State, ExtendedState
-    data object Running : State, ExtendedState {
+    data class Suspended(override val isBasic: Boolean) : State, ExtendedState {
         override fun succeededBy(atEvent: Event) = when (atEvent) {
-            Event.Preempt -> Ready
-            Event.Terminate -> Suspended
+            Event.Activate -> Ready(isBasic)
+            else -> super<State>.succeededBy(atEvent)
+        }
+    }
+
+    data class Ready(override val isBasic: Boolean) : State, ExtendedState {
+        override fun succeededBy(atEvent: Event) = when (atEvent) {
+            Event.Start -> Running(isBasic)
+            else -> super<State>.succeededBy(atEvent)
+        }
+    }
+
+    data class Running(override val isBasic: Boolean) : State, ExtendedState {
+        override fun succeededBy(atEvent: Event) = when {
+            atEvent is Event.Preempt -> Ready(isBasic)
+            atEvent is Event.Terminate -> Suspended(isBasic)
+            !isBasic && atEvent is Event.Wait -> ExtendedState.Waiting
             else -> super<State>.succeededBy(atEvent)
         }
     }
@@ -20,6 +33,13 @@ sealed interface State {
 }
 
 sealed interface ExtendedState : State {
-    data object Waiting : ExtendedState
+    data object Waiting : ExtendedState {
+        override val isBasic = true
+
+        override fun succeededBy(atEvent: Event) = when (atEvent) {
+            Event.Release -> State.Ready(true)
+            else -> super.succeededBy(atEvent)
+        }
+    }
 
 }
