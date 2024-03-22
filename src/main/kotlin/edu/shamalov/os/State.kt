@@ -1,6 +1,4 @@
-package edu.shamalov.os.state
-
-import edu.shamalov.os.event.Event
+package edu.shamalov.os
 
 sealed interface State {
     val isBasic: Boolean

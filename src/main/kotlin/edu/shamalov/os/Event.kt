@@ -1,4 +1,4 @@
-package edu.shamalov.os.event
+package edu.shamalov.os
 
 sealed class Event(val isBasic: Boolean) {
     data object Activate : Event(true)
