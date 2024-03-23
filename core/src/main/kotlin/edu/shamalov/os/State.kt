@@ -32,10 +32,10 @@ sealed interface State {
 
 sealed interface ExtendedState : State {
     data object Waiting : ExtendedState {
-        override val isBasic = true
+        override val isBasic = false
 
         override fun succeededBy(atEvent: Event) = when (atEvent) {
-            Event.Release -> State.Ready(true)
+            Event.Release -> State.Ready(false)
             else -> super.succeededBy(atEvent)
         }
     }
