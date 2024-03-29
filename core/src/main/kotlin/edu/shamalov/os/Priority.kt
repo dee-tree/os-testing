@@ -17,4 +17,14 @@ value class Priority(val priority: Int): Comparable<Priority> {
         return this.priority - other.priority
     }
 
+    companion object {
+        val max: Priority
+            get() = Priority(MAX_PRIORITY)
+
+        val min: Priority
+            get() = Priority(MIN_PRIORITY)
+    }
+
+    override fun toString(): String = priority.toString()
+
 }
