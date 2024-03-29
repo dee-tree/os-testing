@@ -7,18 +7,18 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.atomic.AtomicInteger
 
-abstract class Task(private val os: OperatingSystem, private val jobPortion: suspend () -> State) {
+abstract class Task internal constructor(val priority: Priority) {
     abstract val isBasic: Boolean
-
-    //    abstract val isCompleted: Boolean // TODO: do we need this? Looks like spec do not follow it
-    abstract val priority: Priority
     private val id = Task.id.getAndIncrement()
+    protected abstract val jobPortion: suspend () -> Unit
 
     @Suppress("LeakingThis")
     var state: State = State.Suspended(isBasic)
         protected set
 
-    private lateinit var job: Deferred<State>
+    private var needWaiting = false
+
+    private lateinit var job: Deferred<Unit>
     suspend fun onEvent(event: Event): State {
         logger.debug { "$this received event $event}" }
         state = state.succeededBy(event)
@@ -27,7 +27,9 @@ abstract class Task(private val os: OperatingSystem, private val jobPortion: sus
             event is Event.Preempt -> job.cancel(event.toString())
             event is Event.Start -> {
                 coroutineScope { job = async { jobPortion() } }
-                state = job.await()
+                job.await()
+                state = if (needWaiting) state.succeededBy(Event.Wait) else state.succeededBy(Event.Terminate)
+                needWaiting = false
 
                 if (state is ExtendedState.Waiting && this.isBasic) throw IllegalStateException("Basic task can't wait other events")
                 if (state !is State.Suspended && state !is ExtendedState.Waiting && state !is State.Ready)
@@ -36,6 +38,10 @@ abstract class Task(private val os: OperatingSystem, private val jobPortion: sus
         }
 
         return state
+    }
+
+    protected fun needWaiting() {
+        needWaiting = true
     }
 
     override fun toString(): String = "Task#$id(${if (isBasic) "B" else "E"} : $priority : $state)"

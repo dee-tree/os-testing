@@ -81,18 +81,7 @@ abstract class OperatingSystem(private val processor: Processor = Processor()) :
         osDispatcher.close()
     }
 
-    private fun createTask(priority: Priority, isExtended: Boolean, action: suspend () -> State) = when (isExtended) {
-        true -> ExtendedTask(priority, this, action)
-        false -> BasicTask(priority, this, action)
-    }
-
-    suspend fun enqueueBasicTask(priority: Priority, action: suspend () -> State) {
-        val task = createTask(priority, false, action)
-        scheduler.offer(task, this)
-    }
-
-    suspend fun enqueueExtendedTask(priority: Priority, action: suspend () -> State) {
-        val task = createTask(priority, true, action)
+    suspend fun enqueueTask(task: Task) {
         scheduler.offer(task, this)
     }
 

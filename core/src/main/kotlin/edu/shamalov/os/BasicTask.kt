@@ -1,10 +1,8 @@
 package edu.shamalov.os
 
-class BasicTask internal constructor(
-    override val priority: Priority,
-    os: OperatingSystem,
-    jobPortion: suspend () -> State
-) : Task(os, jobPortion) {
-
+class BasicTask(
+    priority: Priority,
+    override val jobPortion: suspend () -> Unit
+) : Task(priority) {
     override val isBasic = true
 }
