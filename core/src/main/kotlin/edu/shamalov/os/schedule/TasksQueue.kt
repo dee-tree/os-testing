@@ -5,17 +5,26 @@ import edu.shamalov.os.Task
 import edu.shamalov.os.priorityRange
 import java.util.LinkedList
 
-class TasksQueue {
-    private val tasks: MutableMap<Priority, LinkedList<Task>> = hashMapOf()
+class TasksQueue internal constructor(tasks: Map<Priority, LinkedList<Task>>) {
+
+    private val tasks: MutableMap<Priority, LinkedList<Task>> = tasks.toMutableMap()
+
+    constructor() : this(hashMapOf())
 
     init {
         for (priority in priorityRange) {
-            tasks[Priority(priority)] = LinkedList()
+            this.tasks.getOrPut(Priority(priority)) { LinkedList() }
         }
     }
 
+    val size: Int
+        get() = tasks.map { (_, anyTasks) -> anyTasks.size }.sum()
+
     private val hotTasks: LinkedList<Task>
         get() = tasks.filter { (_, anyTasks) -> anyTasks.isNotEmpty() }.maxBy { (priority, _) -> priority }.value
+
+    val maxPriority: Priority
+        get() = hotTasks.first.priority
 
     fun isEmpty(): Boolean {
         return tasks.all { (_, anyTasks) -> anyTasks.isEmpty() }
