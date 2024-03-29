@@ -15,11 +15,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 
-class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY) {
-
+class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: TasksQueue = TasksQueue()) {
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     private val dispatcher = newSingleThreadContext("scheduler")
-    private val queue = TasksQueue()
 
     /**
      * Provides an ability to limit capacity via suspensions

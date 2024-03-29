@@ -13,11 +13,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import java.util.concurrent.atomic.AtomicInteger
 
-abstract class OperatingSystem(private val processor: Processor = Processor()) : AutoCloseable {
-    protected abstract val scheduler: Scheduler
+class OperatingSystem(
+    private val processor: Processor = Processor(),
+    private val scheduler: Scheduler = Scheduler()
+) : AutoCloseable {
     private var isActive = true
     private val id = OperatingSystem.id.getAndIncrement()
-
 
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     private val osDispatcher = newSingleThreadContext("OS")
