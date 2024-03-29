@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
 class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY) {
 
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
-    private val dispatcher = newSingleThreadContext("Scheduler thread")
+    private val dispatcher = newSingleThreadContext("scheduler")
     private val queue = TasksQueue()
 
     /**
@@ -43,13 +43,11 @@ class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY) {
     suspend fun offer(task: Task, locker: Any? = null) = withContext(dispatcher) {
         val reentrant = this@Scheduler.locker != null && locker == this@Scheduler.locker
         if (!reentrant) lock(locker) // acquire lock
-        if (task.state !is State.Ready && task.state !is State.Suspended && task.state !is ExtendedState.Waiting) throw IllegalArgumentException(
-            "Unable to enqueue a task that's not ready nor suspended nor waiting"
-        )
+        if (task.state !is State.Ready && task.state !is State.Suspended && task.state !is ExtendedState.Waiting)
+            throw IllegalArgumentException("Unable to enqueue a task that's not ready nor suspended nor waiting")
 
         offerSemaphore.acquire() // suspends until has space
         popSemaphore.release()
-
 
         when (task.state) {
             is State.Suspended -> task.onEvent(Event.Activate)
@@ -75,7 +73,6 @@ class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY) {
             task.also { if (!reentrant) mutex.unlock(locker) }
         }
     }
-
 
     suspend fun lock(x: Any? = null) {
         mutex.lock(x)

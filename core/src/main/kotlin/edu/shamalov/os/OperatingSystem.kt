@@ -5,31 +5,26 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.newFixedThreadPoolContext
 import kotlinx.coroutines.newSingleThreadContext
 import java.util.concurrent.atomic.AtomicInteger
 
-abstract class OperatingSystem(private val processorCores: Int = DEFAULT_PROCESSOR_CORES) : AutoCloseable {
+abstract class OperatingSystem(private val processor: Processor = Processor()) : AutoCloseable {
     protected abstract val scheduler: Scheduler
     private var isActive = true
     private val id = OperatingSystem.id.getAndIncrement()
 
-    private val processorDispatcher = newFixedThreadPoolContext(processorCores, "processor")
     private val osDispatcher = newSingleThreadContext("OS")
 
     suspend fun start() = coroutineScope {
         logger.debug { "OS is started | Waiting for a task to execute" }
         launch(osDispatcher) {
             var task = scheduler.pop(this@OperatingSystem).await()
-            logger.debug { "Processor received task to execute $task" }
 
-            while (isActive && processorDispatcher.isActive) {
-
-                val job = async(processorDispatcher) { task.onEvent(Event.Start) }
+            while (isActive && osDispatcher.isActive) {
+                val job = with(processor) { execute(task) }
                 task.preemptIfCaseOfHigherPriorityTask(job)
 
                 val state = try {
@@ -78,7 +73,7 @@ abstract class OperatingSystem(private val processorCores: Int = DEFAULT_PROCESS
     override fun close() {
         if (!isActive) return
         isActive = false
-        processorDispatcher.close()
+        processor.close()
         osDispatcher.close()
     }
 
@@ -100,7 +95,6 @@ abstract class OperatingSystem(private val processorCores: Int = DEFAULT_PROCESS
     companion object {
         private val logger = KotlinLogging.logger { }
         private val id = AtomicInteger(0)
-        const val DEFAULT_PROCESSOR_CORES = 1
     }
 
     override fun equals(other: Any?): Boolean {
@@ -108,6 +102,8 @@ abstract class OperatingSystem(private val processorCores: Int = DEFAULT_PROCESS
             return this.id == other.id
         return false
     }
+
+    override fun hashCode(): Int = id
 
     override fun toString(): String = "Operating System"
 }
