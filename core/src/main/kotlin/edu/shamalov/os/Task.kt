@@ -7,7 +7,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.atomic.AtomicInteger
 
-abstract class Task internal constructor(val priority: Priority = Priority.default, private val isBasic: Boolean = true) {
+abstract class Task internal constructor(
+    val priority: Priority = Priority.default,
+    private val isBasic: Boolean = true
+) {
     private val id = Task.id.getAndIncrement()
     protected abstract val jobPortion: suspend () -> Unit
 
@@ -32,9 +35,7 @@ abstract class Task internal constructor(val priority: Priority = Priority.defau
 
                 logger.debug { "$this finished execution" + if (this is ExtendedTask && needWaiting) ", WAITING for an event" else "" }
 
-                if (state is ExtendedState.Waiting && this.isBasic) throw IllegalStateException("Basic task can't wait other events")
-                if (state !is State.Suspended && state !is ExtendedState.Waiting && state !is State.Ready)
-                    throw IllegalStateException("Invalid job result: $state")
+                require(this is ExtendedTask || state !is ExtendedState.Waiting) { "Basic task can't wait other events" }
             }
         }
 
