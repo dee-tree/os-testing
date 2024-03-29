@@ -6,7 +6,7 @@ class ExtendedTask(
      * job portion, which returns true is waiting for some event is required
      */
     jobPortion: suspend () -> Boolean
-) : Task(priority) {
+) : Task(priority, false) {
 
     override val jobPortion: suspend () -> Unit = {
         if (jobPortion()) {
@@ -14,5 +14,5 @@ class ExtendedTask(
         }
     }
 
-    override val isBasic = false
+    override fun toString(): String = "Extended${super.toString()}"
 }

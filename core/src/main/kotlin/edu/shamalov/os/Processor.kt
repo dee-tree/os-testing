@@ -2,6 +2,7 @@ package edu.shamalov.os
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.newFixedThreadPoolContext
@@ -18,13 +19,15 @@ class Processor(val cores: UInt = DEFAULT_PROCESSOR_CORES) : AutoCloseable {
     @OptIn(DelicateCoroutinesApi::class)
     private val dispatcher = newFixedThreadPoolContext(cores.toInt(), "processor")
 
-    fun CoroutineScope.execute(task: Task) = async(dispatcher) {
-        logger.debug { "Execute $task" }
-        try {
-            currentTasksCount++
-            task.onEvent(Event.Start)
-        } finally {
-            currentTasksCount--
+    fun CoroutineScope.execute(task: Task): Deferred<State> {
+        currentTasksCount++
+        return async(dispatcher) {
+            logger.debug { "Execute $task" }
+            try {
+                task.onEvent(Event.Start).also { logger.debug { "Finished execution $task" } }
+            } finally {
+                currentTasksCount--
+            }
         }
     }
 

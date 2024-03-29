@@ -7,18 +7,17 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.atomic.AtomicInteger
 
-abstract class Task internal constructor(val priority: Priority) {
-    abstract val isBasic: Boolean
+abstract class Task internal constructor(val priority: Priority = Priority.default, private val isBasic: Boolean = true) {
     private val id = Task.id.getAndIncrement()
     protected abstract val jobPortion: suspend () -> Unit
 
-    @Suppress("LeakingThis")
     var state: State = State.Suspended(isBasic)
         protected set
 
     private var needWaiting = false
 
     private lateinit var job: Deferred<Unit>
+
     suspend fun onEvent(event: Event): State {
         logger.debug { "$this received event $event}" }
         state = state.succeededBy(event)
@@ -30,6 +29,8 @@ abstract class Task internal constructor(val priority: Priority) {
                 job.await()
                 state = if (needWaiting) state.succeededBy(Event.Wait) else state.succeededBy(Event.Terminate)
                 needWaiting = false
+
+                logger.debug { "$this finished execution" + if (this is ExtendedTask && needWaiting) ", WAITING for an event" else "" }
 
                 if (state is ExtendedState.Waiting && this.isBasic) throw IllegalStateException("Basic task can't wait other events")
                 if (state !is State.Suspended && state !is ExtendedState.Waiting && state !is State.Ready)
@@ -44,7 +45,7 @@ abstract class Task internal constructor(val priority: Priority) {
         needWaiting = true
     }
 
-    override fun toString(): String = "Task#$id(${if (isBasic) "B" else "E"} : $priority : $state)"
+    override fun toString(): String = "Task#$id($priority, $state)"
 
     companion object {
         private val id = AtomicInteger(0)
