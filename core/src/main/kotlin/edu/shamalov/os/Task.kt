@@ -5,6 +5,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
+import java.util.Objects
 import java.util.concurrent.atomic.AtomicInteger
 
 abstract class Task internal constructor(
@@ -47,6 +48,19 @@ abstract class Task internal constructor(
     }
 
     override fun toString(): String = "Task#$id($priority, $state)"
+
+    override fun equals(other: Any?): Boolean {
+        if (other !is Task) return false
+        return when {
+            this.id != other.id -> false
+            this.isBasic != other.isBasic -> false
+            this.priority != other.priority -> false
+            this.state != other.state -> false
+            else -> true
+        }
+    }
+
+    override fun hashCode(): Int = Objects.hash(id, isBasic, priority)
 
     companion object {
         private val id = AtomicInteger(0)
