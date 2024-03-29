@@ -3,7 +3,9 @@ package edu.shamalov.os
 import edu.shamalov.os.schedule.Scheduler
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
@@ -16,6 +18,8 @@ abstract class OperatingSystem(private val processor: Processor = Processor()) :
     private var isActive = true
     private val id = OperatingSystem.id.getAndIncrement()
 
+
+    @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     private val osDispatcher = newSingleThreadContext("OS")
 
     suspend fun start() = coroutineScope {
