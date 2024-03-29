@@ -10,26 +10,28 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
-import kotlin.contracts.ExperimentalContracts
-import kotlin.contracts.InvocationKind
-import kotlin.contracts.contract
 
 class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY) {
 
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     private val dispatcher = newSingleThreadContext("Scheduler thread")
     private val queue = TasksQueue()
-    private val mutex = Mutex()
 
     /**
-     * We need limited storage this to suspend queue operations in corner cases to not block/throw
+     * Provides an ability to limit capacity via suspensions
      */
-    private val limitedStorage = Channel<Unit>(capacity.toInt())
+    private val offerSemaphore = Semaphore(capacity.toInt())
+    private val popSemaphore = Semaphore(capacity.toInt(), acquiredPermits = capacity.toInt())
+
+    /**
+     * Provides an ability to lock operations with scheduler
+     */
+    private val mutex = Mutex()
+    private var locker: Any? = null
 
     val isFull: Boolean
         get() = queue.size - capacity.toInt() >= 0
@@ -38,49 +40,51 @@ class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY) {
         return if (queue.isEmpty()) false else queue.maxPriority > than
     }
 
-    suspend fun offer(task: Task) = withContext(dispatcher) {
+    suspend fun offer(task: Task, locker: Any? = null) = withContext(dispatcher) {
+        val reentrant = this@Scheduler.locker != null && locker == this@Scheduler.locker
+        if (!reentrant) lock(locker) // acquire lock
         if (task.state !is State.Ready && task.state !is State.Suspended && task.state !is ExtendedState.Waiting) throw IllegalArgumentException(
             "Unable to enqueue a task that's not ready nor suspended nor waiting"
         )
 
-        limitedStorage.send(Unit) // suspends until has space
+        offerSemaphore.acquire() // suspends until has space
+        popSemaphore.release()
+
+
         when (task.state) {
             is State.Suspended -> task.onEvent(Event.Activate)
             is ExtendedState.Waiting -> task.onEvent(Event.Release)
             else -> Unit
         }
         queue.offer(task)
-
         logger.debug { "$task is added to the queue | enqueued ${queue.size} tasks" }
+        if (!reentrant) mutex.unlock(locker)
     }
 
-    suspend fun pop(): Deferred<Task> = withContext(dispatcher) {
+    suspend fun pop(locker: Any? = null): Deferred<Task> = withContext(dispatcher) {
         async {
-            limitedStorage.receive()
+            val reentrant = this@Scheduler.locker != null && locker == this@Scheduler.locker
+            if (!reentrant) lock(locker) // acquire lock
+
+            popSemaphore.acquire()
+            offerSemaphore.release()
+
             val task = queue.pop()
             require(task.state is State.Ready) { "actual state: ${task.state} of $task" }
             logger.debug { "$task is popped from the queue | enqueued ${queue.size} tasks" }
-            task
+            task.also { if (!reentrant) mutex.unlock(locker) }
         }
     }
 
 
-    suspend fun lock(x: Any) {
+    suspend fun lock(x: Any? = null) {
         mutex.lock(x)
+        locker = x
     }
 
-    fun unlock(x: Any) {
+    fun unlock(x: Any? = null) {
         mutex.unlock(x)
-    }
-
-    @OptIn(ExperimentalContracts::class)
-    suspend fun <T> withLock(action: Scheduler.() -> T): T {
-        contract {
-            callsInPlace(action, InvocationKind.EXACTLY_ONCE)
-        }
-        return mutex.withLock {
-            this.action()
-        }
+        locker = null
     }
 
     companion object {
