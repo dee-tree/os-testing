@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 
-class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: TasksQueue = TasksQueue()) {
+class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: TasksQueue = TasksQueue()): AutoCloseable {
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     private val dispatcher = newSingleThreadContext("scheduler")
 
@@ -66,7 +66,7 @@ class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: 
             offerSemaphore.release()
 
             val task = queue.pop()
-            require(task.state is State.Ready) { "actual state: ${task.state} of $task" }
+            require(task.state is State.Ready) { "Queue is broken! Expected queue containing only ready tasks, but got $task" }
             logger.debug { "$task is popped from the queue | enqueued ${queue.size} tasks" }
             task.also { if (!reentrant) mutex.unlock(locker) }
         }
@@ -82,9 +82,12 @@ class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: 
         locker = null
     }
 
+    override fun close() {
+        dispatcher.close()
+    }
+
     companion object {
         private val logger = KotlinLogging.logger { }
+        const val DEFAULT_QUEUE_CAPACITY = 10u
     }
 }
-
-const val DEFAULT_QUEUE_CAPACITY = 10u
