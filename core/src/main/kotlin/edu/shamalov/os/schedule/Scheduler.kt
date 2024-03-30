@@ -66,7 +66,7 @@ class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: 
             offerSemaphore.release()
 
             val task = queue.pop()
-            require(task.state is State.Ready) { "actual state: ${task.state} of $task" }
+            require(task.state is State.Ready) { "Queue is broken! Expected queue containing only ready tasks, but got $task" }
             logger.debug { "$task is popped from the queue | enqueued ${queue.size} tasks" }
             task.also { if (!reentrant) mutex.unlock(locker) }
         }
