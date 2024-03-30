@@ -2,7 +2,7 @@ package edu.shamalov.os.schedule
 
 import edu.shamalov.os.Priority
 import edu.shamalov.os.Task
-import edu.shamalov.os.priorityRange
+import edu.shamalov.os.PRIORITY_RANGE
 import java.util.LinkedList
 
 class TasksQueue internal constructor(tasks: Map<Priority, LinkedList<Task>>) {
@@ -11,7 +11,7 @@ class TasksQueue internal constructor(tasks: Map<Priority, LinkedList<Task>>) {
     constructor() : this(hashMapOf())
 
     init {
-        for (priority in priorityRange) {
+        for (priority in PRIORITY_RANGE) {
             this.tasks.getOrPut(Priority(priority)) { LinkedList() }
         }
     }

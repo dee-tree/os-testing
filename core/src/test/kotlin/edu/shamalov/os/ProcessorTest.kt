@@ -18,7 +18,7 @@ class ProcessorTest {
     @Test
     fun testRunBasic() = runTest {
         val processor = Processor(1u)
-        val task1 = BasicTask(Priority(priorityRange.random())) {
+        val task1 = BasicTask(Priority(PRIORITY_RANGE.random())) {
             delay(100)
         }.apply { onEvent(Event.Activate) }
 
@@ -73,10 +73,10 @@ class ProcessorTest {
         val processor = Processor(1u)
 
         // ----- SUSPEND ----- //
-        ExtendedTask(Priority.default) {
+        val jobPortion: suspend () -> Unit = {
             delay(100)
-            false
-        }.also {
+        }
+        createExtendedTask(Priority.default, jobPortion).also {
             runCatching {
                 coroutineScope { with(processor) { execute(it) }.await() }
             }.also {
@@ -86,10 +86,7 @@ class ProcessorTest {
         }
 
         // ----- RUNNING ----- //
-        ExtendedTask(Priority.default) {
-            delay(100)
-            false
-        }.also {
+        createExtendedTask(Priority.default, jobPortion).also {
             it.onEvent(Event.Activate)
             val anotherProc = Processor(1u)
 

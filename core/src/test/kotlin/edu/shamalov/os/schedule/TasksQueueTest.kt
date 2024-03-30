@@ -2,7 +2,7 @@ package edu.shamalov.os.schedule
 
 import edu.shamalov.os.BasicTask
 import edu.shamalov.os.Priority
-import edu.shamalov.os.priorityRange
+import edu.shamalov.os.PRIORITY_RANGE
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -58,7 +58,7 @@ class TasksQueueTest {
 
     @Test
     fun testTimePriority() {
-        priorityRange.map { Priority(it) }.forEach { priority ->
+        PRIORITY_RANGE.map { Priority(it) }.forEach { priority ->
             val queue = TasksQueue()
             val aTask = BasicTask(priority) {}
             val bTask = BasicTask(priority) {}
