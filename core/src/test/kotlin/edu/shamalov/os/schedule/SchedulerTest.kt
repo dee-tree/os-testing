@@ -7,7 +7,7 @@ import edu.shamalov.os.MIN_PRIORITY
 import edu.shamalov.os.Priority
 import edu.shamalov.os.State
 import edu.shamalov.os.Task
-import edu.shamalov.os.priorityRange
+import edu.shamalov.os.PRIORITY_RANGE
 import io.mockk.called
 import io.mockk.every
 import io.mockk.mockk
@@ -37,7 +37,7 @@ class SchedulerTest {
         val scheduler = Scheduler(10u, queue)
         assertFalse { scheduler.isFull }
         assertEquals(10u, scheduler.capacity)
-        priorityRange.map { Priority(it) }.forEach { priority ->
+        PRIORITY_RANGE.map { Priority(it) }.forEach { priority ->
             assertFalse { scheduler.hasHigherPriorityTask(priority) }
         }
 

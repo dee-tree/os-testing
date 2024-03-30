@@ -4,9 +4,10 @@ import kotlin.random.Random
 import kotlinx.coroutines.delay
 
 fun generateTask(random: Random = Random.Default): Task {
-    val priority = Priority(random.nextInt(MIN_PRIORITY, MAX_PRIORITY + 1))
+    val priority = Priority(PRIORITY_RANGE.random(random))
     val isBasic = random.nextBoolean()
-    val delayTime = (random.nextLong(MIN_DELAY_RUNNING, MAX_DELAY_RUNNING + 1) * ACCELERATION_COEFFICIENT).toLong()
+
+    val delayTime = (RUNNING_MILLIS_RANGE.random(random) * ACCELERATION_COEFFICIENT).toLong()
     return if (isBasic) {
         BasicTask(
             priority = priority,
@@ -15,11 +16,15 @@ fun generateTask(random: Random = Random.Default): Task {
             }
         )
     } else {
+        val waitingEvent = suspend {
+            delay((WAITING_MILLIS_RANGE.random(random) * ACCELERATION_COEFFICIENT).toLong())
+        }
         ExtendedTask(
             priority = priority,
             jobPortion = {
                 delay(timeMillis = delayTime)
-                random.nextBoolean()
+                val needWait = random.nextBoolean()
+                if (needWait) waitingEvent else null
             }
         )
     }

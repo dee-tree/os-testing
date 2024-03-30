@@ -6,6 +6,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import java.util.Objects
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 abstract class Task internal constructor(
@@ -18,25 +19,34 @@ abstract class Task internal constructor(
     var state: State = State.Suspended(isBasic)
         protected set
 
-    private var needWaiting = false
+    private var needWaiting = AtomicBoolean(false)
 
     private lateinit var job: Deferred<Unit>
 
     suspend fun onEvent(event: Event): State {
-        logger.debug { "$this received event $event}" }
+        logger.debug { "$this received event $event" }
         state = state.succeededBy(event)
 
         when {
+            event is Event.Wait -> {
+                require(this is ExtendedTask)
+                coroutineScope { job = async { jobPortion() } }
+                job.await()
+            }
             event is Event.Preempt -> job.cancel(event.toString())
             event is Event.Start -> {
                 coroutineScope { job = async { jobPortion() } }
                 job.await()
-                state = if (needWaiting) state.succeededBy(Event.Wait) else state.succeededBy(Event.Terminate)
-                needWaiting = false
 
-                logger.debug { "$this finished execution" + if (this is ExtendedTask && needWaiting) ", WAITING for an event" else "" }
+                logger.debug { "$this finished execution" + if (this is ExtendedTask && needWaiting.get()) ", WAITING for an event" else "" }
+                if (needWaiting.get()) {
+                    onEvent(Event.Wait)
+                } else {
+                    onEvent(Event.Terminate)
+                }
 
                 require(this is ExtendedTask || state !is ExtendedState.Waiting) { "Basic task can't wait other events" }
+                needWaiting.set(false)
             }
         }
 
@@ -44,7 +54,8 @@ abstract class Task internal constructor(
     }
 
     protected fun needWaiting() {
-        needWaiting = true
+        require(this is ExtendedTask)
+        needWaiting.set(true)
     }
 
     override fun toString(): String = "Task#$id($priority, $state)"

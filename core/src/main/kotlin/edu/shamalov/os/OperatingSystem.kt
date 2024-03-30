@@ -3,11 +3,11 @@ package edu.shamalov.os
 import edu.shamalov.os.schedule.Scheduler
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
@@ -23,9 +23,10 @@ class OperatingSystem(
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     private val osDispatcher = newSingleThreadContext("OS")
 
-    suspend fun start() = coroutineScope {
+    private lateinit var job: Job
+    fun CoroutineScope.start() {
         logger.debug { "OS is started | Waiting for a task to execute" }
-        launch(osDispatcher) {
+        job = launch(osDispatcher) {
             var task = scheduler.pop(this@OperatingSystem).await()
 
             while (isActive && osDispatcher.isActive) {
@@ -78,9 +79,13 @@ class OperatingSystem(
     override fun close() {
         if (!isActive) return
         isActive = false
+        scheduler.close()
         processor.close()
+        job.cancel()
         osDispatcher.close()
     }
+
+    fun stop() = close()
 
     suspend fun enqueueTask(task: Task) {
         scheduler.offer(task, this)
