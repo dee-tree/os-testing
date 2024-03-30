@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 
-class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: TasksQueue = TasksQueue()) {
+class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: TasksQueue = TasksQueue()): AutoCloseable {
     @OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
     private val dispatcher = newSingleThreadContext("scheduler")
 
@@ -82,9 +82,12 @@ class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: 
         locker = null
     }
 
+    override fun close() {
+        dispatcher.close()
+    }
+
     companion object {
         private val logger = KotlinLogging.logger { }
+        const val DEFAULT_QUEUE_CAPACITY = 10u
     }
 }
-
-const val DEFAULT_QUEUE_CAPACITY = 10u
