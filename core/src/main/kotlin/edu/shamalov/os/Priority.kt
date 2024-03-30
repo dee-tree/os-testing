@@ -23,6 +23,9 @@ value class Priority(val priority: Int): Comparable<Priority> {
 
         val min: Priority
             get() = Priority(MIN_PRIORITY)
+
+        val default: Priority
+            get() = Priority((MAX_PRIORITY + MIN_PRIORITY) / 2)
     }
 
     override fun toString(): String = priority.toString()

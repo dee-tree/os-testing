@@ -8,7 +8,6 @@ import java.util.LinkedList
 class TasksQueue internal constructor(tasks: Map<Priority, LinkedList<Task>>) {
 
     private val tasks: MutableMap<Priority, LinkedList<Task>> = tasks.toMutableMap()
-
     constructor() : this(hashMapOf())
 
     init {

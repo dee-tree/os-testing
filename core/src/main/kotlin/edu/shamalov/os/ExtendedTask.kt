@@ -1,10 +1,18 @@
 package edu.shamalov.os
 
 class ExtendedTask(
-    override val priority: Priority,
-    os: OperatingSystem,
-    jobPortion: suspend () -> State
-) : Task(os, jobPortion) {
+    priority: Priority,
+    /**
+     * job portion, which returns true is waiting for some event is required
+     */
+    jobPortion: suspend () -> Boolean
+) : Task(priority, false) {
 
-    override val isBasic = false
+    override val jobPortion: suspend () -> Unit = {
+        if (jobPortion()) {
+            needWaiting()
+        }
+    }
+
+    override fun toString(): String = "Extended${super.toString()}"
 }
