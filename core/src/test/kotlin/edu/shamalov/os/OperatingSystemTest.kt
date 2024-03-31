@@ -1,24 +1,10 @@
 package edu.shamalov.os
 
 import edu.shamalov.os.schedule.Scheduler
-import io.mockk.clearMocks
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.spyk
-import io.mockk.verify
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
+import io.mockk.*
+import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
+import kotlin.test.*
 import kotlin.time.measureTime
 
 class OperatingSystemTest {
@@ -30,6 +16,13 @@ class OperatingSystemTest {
         every { processor.close() } returns Unit
 
         val os = OperatingSystem(processor, scheduler)
+
+        val os1 = OperatingSystem()
+        assertEquals("Operating System", os.toString())
+        assert(os.hashCode() != os1.hashCode())
+        assertNotEquals(os, os1)
+        assertFalse(os.equals("not an OperatingSystem"))
+
         with(os) { start() }
 
         withContext(Dispatchers.Default.limitedParallelism(1)) { delay(100) } // startup
