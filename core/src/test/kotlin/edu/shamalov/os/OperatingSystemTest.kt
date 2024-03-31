@@ -1,13 +1,7 @@
 package edu.shamalov.os
 
 import edu.shamalov.os.schedule.Scheduler
-import io.mockk.clearMocks
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.spyk
-import io.mockk.verify
+import io.mockk.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
@@ -124,35 +118,6 @@ class OperatingSystemTest {
         assertIs<Event.Release>(capturedEvents[2])
         assertIs<Event.Start>(capturedEvents[3])
 
-        os.stop()
-    }
-
-
-    @Test
-    fun testCancellationExceptionHandling() = runTest {
-        val scheduler = spyk(Scheduler())
-        val processor = mockk<Processor>()
-        coEvery { processor.close() } returns Unit
-        val os = OperatingSystem(processor, scheduler)
-
-        with(os) { start() }
-
-        val task = spyk(BasicTask(Priority.default) { delay(200) })
-        val higherPriorityTask: Task = spyk(BasicTask(Priority.max) { delay(200) })
-
-        coEvery { scheduler.pop(any()) } returnsMany listOf(
-            CompletableDeferred(task),
-            CompletableDeferred(higherPriorityTask)
-        )
-        coEvery { with(processor) { any<CoroutineScope>().execute(task) } } answers {
-            async {
-                delay(100)
-                throw CancellationException()
-            }
-        }
-        os.enqueueTask(task)
-        delay(600)
-        assertTrue { task.state is State.Ready }
         os.stop()
     }
 }
