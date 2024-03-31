@@ -4,11 +4,7 @@ import edu.shamalov.os.BasicTask
 import edu.shamalov.os.Priority
 import edu.shamalov.os.PRIORITY_RANGE
 import org.junit.jupiter.api.assertThrows
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class TasksQueueTest {
 
@@ -31,6 +27,10 @@ class TasksQueueTest {
 
     @Test
     fun testPriority() {
+        assertFailsWith<IllegalArgumentException> {
+            Priority(4)
+        }
+
         val queue = TasksQueue()
         val lowTask = BasicTask(Priority.min) {}
         val highTask = BasicTask(Priority.max) {}

@@ -8,17 +8,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
+import kotlin.test.*
 import kotlin.time.measureTime
 
 class OperatingSystemTest {
@@ -30,6 +22,13 @@ class OperatingSystemTest {
         every { processor.close() } returns Unit
 
         val os = OperatingSystem(processor, scheduler)
+
+        val os1 = OperatingSystem()
+        assertEquals("Operating System", os.toString())
+        assert(os.hashCode() != os1.hashCode())
+        assertNotEquals(os, os1)
+        assertFalse(os.equals("not an OperatingSystem"))
+
         with(os) { start() }
 
         withContext(Dispatchers.Default.limitedParallelism(1)) { delay(100) } // startup
@@ -125,6 +124,35 @@ class OperatingSystemTest {
         assertIs<Event.Release>(capturedEvents[2])
         assertIs<Event.Start>(capturedEvents[3])
 
+        os.stop()
+    }
+
+
+    @Test
+    fun testCancellationExceptionHandling() = runTest {
+        val scheduler = spyk(Scheduler())
+        val processor = mockk<Processor>()
+        coEvery { processor.close() } returns Unit
+        val os = OperatingSystem(processor, scheduler)
+
+        with(os) { start() }
+
+        val task = spyk(BasicTask(Priority.default) { delay(200) })
+        val higherPriorityTask: Task = spyk(BasicTask(Priority.max) { delay(200) })
+
+        coEvery { scheduler.pop(any()) } returnsMany listOf(
+            CompletableDeferred(task),
+            CompletableDeferred(higherPriorityTask)
+        )
+        coEvery { with(processor) { any<CoroutineScope>().execute(task) } } answers {
+            async {
+                delay(100)
+                throw CancellationException()
+            }
+        }
+        os.enqueueTask(task)
+        delay(600)
+        assertTrue { task.state is State.Ready }
         os.stop()
     }
 }
