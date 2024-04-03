@@ -16,6 +16,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.test.*
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTime
 
 class OperatingSystemTest {
@@ -192,5 +194,28 @@ class OperatingSystemTest {
         val os3 = OperatingSystem(Processor(10u), Scheduler(1u))
         assertNotEquals(os, os3)
         assertNotEquals(os.hashCode(), os3.hashCode())
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun testCloseWhileActive() = runTest {
+        val proc = spyk(Processor())
+        val os = OperatingSystem(proc)
+        with(os) { start() }
+
+        val task = spyk(BasicTask(Priority.default) { delay(1.days) })
+        os.enqueueTask(task)
+
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(10.seconds) {
+                while (task.state !is State.Running);
+                assertEquals(1, proc.currentTasksCount)
+
+                os.close()
+                while (proc.currentTasksCount != 0);
+                assertEquals(0, proc.currentTasksCount)
+            }
+        }
+
     }
 }

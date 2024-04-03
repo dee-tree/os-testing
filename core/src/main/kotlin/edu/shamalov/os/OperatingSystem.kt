@@ -11,6 +11,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
+import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
 class OperatingSystem(
@@ -29,14 +30,16 @@ class OperatingSystem(
         job = launch(osDispatcher) {
             var task = scheduler.pop(this@OperatingSystem).await()
 
-            while (isActive && osDispatcher.isActive) {
+            while (this.isActive) {
                 val job = with(processor) { execute(task) }
                 launch(Dispatchers.IO) { task.preemptIfCaseOfHigherPriorityTask(job) }
 
                 val state = try {
                     job.await()
                 } catch (e: CancellationException) {
-                    require(e.message?.contains("Preempt") == true) { e.stackTraceToString() }
+                    if (e.message?.contains("Preempt") != true)
+                        continue
+
                     require(task.state is State.Ready) // after preempt
                     val higherPriorityTask = scheduler.pop(this@OperatingSystem).await()
                     scheduler.offer(task, this@OperatingSystem)
@@ -93,7 +96,7 @@ class OperatingSystem(
     }
 
     companion object {
-        private val logger = KotlinLogging.logger { }
+        private val logger = KotlinLogging.logger("OS")
         private val id = AtomicInteger(0)
     }
 
@@ -103,7 +106,7 @@ class OperatingSystem(
         return false
     }
 
-    override fun hashCode(): Int = id
+    override fun hashCode(): Int = Objects.hash(id)
 
-    override fun toString(): String = "Operating System"
+    override fun toString(): String = "Operating System #$id"
 }
