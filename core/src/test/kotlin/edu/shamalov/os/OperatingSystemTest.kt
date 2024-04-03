@@ -15,10 +15,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
+import kotlin.test.*
 import kotlin.time.measureTime
 
 class OperatingSystemTest {
@@ -126,5 +123,74 @@ class OperatingSystemTest {
         assertIs<Event.Start>(capturedEvents[3])
 
         os.stop()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun testPreempt() = runTest {
+        val scheduler = spyk(Scheduler())
+        val processor = spyk(Processor())
+
+        val os = OperatingSystem(processor, scheduler)
+        with(os) { start() }
+
+        val longLowPriorityTask = spyk(BasicTask(Priority.min) { delay(1000L) })
+        val highPriorityTask = spyk(BasicTask(Priority.max) { delay(100L) })
+
+        val eventsLow = mutableListOf<Event>()
+        val eventsHigh = mutableListOf<Event>()
+        coEvery { longLowPriorityTask.onEvent(capture(eventsLow)) }.coAnswers { callOriginal() }
+        coEvery { highPriorityTask.onEvent(capture(eventsHigh)) }.coAnswers { callOriginal() }
+
+        assertEquals(0, processor.currentTasksCount)
+        os.enqueueTask(longLowPriorityTask)
+
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(2000L) {
+                measureTime {
+                    while (longLowPriorityTask.state !is State.Running);
+                    assertIs<State.Running>(longLowPriorityTask.state)
+                }.also { assertTrue { it.inWholeMilliseconds < 1000 } }
+
+                assertEquals(1, processor.currentTasksCount)
+                os.enqueueTask(highPriorityTask)
+
+                while (highPriorityTask.state !is State.Running);
+                assertIs<State.Running>(highPriorityTask.state)
+                assertIs<State.Ready>(longLowPriorityTask.state)
+
+                while (longLowPriorityTask.state !is State.Running);
+                assertIs<State.Running>(longLowPriorityTask.state)
+
+                while (processor.currentTasksCount != 0);
+                assertIs<State.Suspended>(longLowPriorityTask.state)
+                assertIs<State.Suspended>(highPriorityTask.state)
+            }
+        }
+
+        assertIs<Event.Activate>(eventsLow[0])
+        assertIs<Event.Start>(eventsLow[1])
+        assertIs<Event.Preempt>(eventsLow[2])
+        assertIs<Event.Start>(eventsLow[3])
+
+        assertIs<Event.Activate>(eventsHigh[0])
+        assertIs<Event.Start>(eventsHigh[1])
+
+        os.stop()
+    }
+
+    @Test
+    fun testEquals() {
+        val os = OperatingSystem()
+        assertEquals(os, os)
+        assertEquals(os.hashCode(), os.hashCode())
+
+        val os2 = OperatingSystem()
+        assertNotEquals(os, os2)
+        assertNotEquals(os.hashCode(), os2.hashCode())
+
+        val os3 = OperatingSystem(Processor(10u), Scheduler(1u))
+        assertNotEquals(os, os3)
+        assertNotEquals(os.hashCode(), os3.hashCode())
     }
 }

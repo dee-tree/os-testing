@@ -31,11 +31,12 @@ class OperatingSystem(
 
             while (isActive && osDispatcher.isActive) {
                 val job = with(processor) { execute(task) }
-                task.preemptIfCaseOfHigherPriorityTask(job)
+                launch(Dispatchers.IO) { task.preemptIfCaseOfHigherPriorityTask(job) }
 
                 val state = try {
                     job.await()
                 } catch (e: CancellationException) {
+                    require(e.message?.contains("Preempt") == true) { e.stackTraceToString() }
                     require(task.state is State.Ready) // after preempt
                     val higherPriorityTask = scheduler.pop(this@OperatingSystem).await()
                     scheduler.offer(task, this@OperatingSystem)
