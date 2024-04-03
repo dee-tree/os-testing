@@ -1,5 +1,7 @@
 package edu.shamalov.os
 
+import java.util.*
+
 sealed interface State {
     val isBasic: Boolean
 
@@ -10,6 +12,13 @@ sealed interface State {
             Event.Activate -> Ready(isBasic)
             else -> super<State>.succeededBy(atEvent)
         }
+
+        override fun equals(other: Any?): Boolean {
+            if (other !is Suspended) return false
+            return this.isBasic == other.isBasic
+        }
+
+        override fun hashCode(): Int = Objects.hash("Suspended", isBasic)
     }
 
     data class Ready(override val isBasic: Boolean) : State, ExtendedState {
@@ -17,6 +26,13 @@ sealed interface State {
             Event.Start -> Running(isBasic)
             else -> super<State>.succeededBy(atEvent)
         }
+
+        override fun equals(other: Any?): Boolean {
+            if (other !is Ready) return false
+            return this.isBasic == other.isBasic
+        }
+
+        override fun hashCode(): Int = Objects.hash("Ready", isBasic)
     }
 
     data class Running(override val isBasic: Boolean) : State, ExtendedState {
@@ -26,6 +42,13 @@ sealed interface State {
             !isBasic && atEvent is Event.Wait -> ExtendedState.Waiting
             else -> super<State>.succeededBy(atEvent)
         }
+
+        override fun equals(other: Any?): Boolean {
+            if (other !is Running) return false
+            return this.isBasic == other.isBasic
+        }
+
+        override fun hashCode(): Int = Objects.hash("Running", isBasic)
     }
 
 }
@@ -39,5 +62,4 @@ sealed interface ExtendedState : State {
             else -> super.succeededBy(atEvent)
         }
     }
-
 }

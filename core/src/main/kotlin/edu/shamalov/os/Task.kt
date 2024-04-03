@@ -1,10 +1,7 @@
 package edu.shamalov.os
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.*
 import java.util.Objects
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -13,11 +10,21 @@ abstract class Task internal constructor(
     val priority: Priority = Priority.default,
     private val isBasic: Boolean = true
 ) {
-    private val id = Task.id.getAndIncrement()
     protected abstract val jobPortion: suspend () -> Unit
 
-    var state: State = State.Suspended(isBasic)
-        protected set
+    private val _id: Int = Task.id.getAndIncrement()
+
+    val id: Int
+        get() = _id
+
+    private var _state: State = State.Suspended(isBasic)
+
+    var state: State
+        get() = _state
+        protected set(value) {
+            _state = value
+        }
+
 
     private var needWaiting = AtomicBoolean(false)
 
@@ -27,15 +34,16 @@ abstract class Task internal constructor(
         logger.debug { "$this received event $event" }
         state = state.succeededBy(event)
 
-        when {
-            event is Event.Wait -> {
+        when (event) {
+            is Event.Wait -> {
                 require(this is ExtendedTask)
-                coroutineScope { job = async { jobPortion() } }
+                withContext(Dispatchers.Unconfined) { job = async { jobPortion() } }
                 job.await()
             }
-            event is Event.Preempt -> job.cancel(event.toString())
-            event is Event.Start -> {
-                coroutineScope { job = async { jobPortion() } }
+
+            is Event.Preempt -> job.cancel(event.toString())
+            is Event.Start -> {
+                withContext(Dispatchers.Unconfined) { job = async { jobPortion() } }
                 job.await()
 
                 logger.debug { "$this finished execution" + if (this is ExtendedTask && needWaiting.get()) ", WAITING for an event" else "" }
@@ -48,6 +56,7 @@ abstract class Task internal constructor(
                 require(this is ExtendedTask || state !is ExtendedState.Waiting) { "Basic task can't wait other events" }
                 needWaiting.set(false)
             }
+            else -> Unit
         }
 
         return state
@@ -71,11 +80,10 @@ abstract class Task internal constructor(
         }
     }
 
-    override fun hashCode(): Int = Objects.hash(id, isBasic, priority)
+    override fun hashCode(): Int = Objects.hash(id, isBasic, priority, state)
 
     companion object {
         private val id = AtomicInteger(0)
+        private val logger = KotlinLogging.logger("Task")
     }
 }
-
-private val logger = KotlinLogging.logger { }

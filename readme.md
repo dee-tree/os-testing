@@ -2,7 +2,8 @@
 
 ----
 
-![coverage](.github/badges/jacoco.svg)
+![coverage instructions](.github/badges/jacoco.svg)
+![coverage branches](.github/badges/branches.svg)
 ![build](https://github.com/dee-tree/os-testing/actions/workflows/build.yaml/badge.svg?event=push&branch=master)
 
 The project presents a model of an operating system capable of managing the execution of multiple processes in real time. This system provides parallel and asynchronous execution of tasks, which is key to ensuring efficient operation of multitasking systems.

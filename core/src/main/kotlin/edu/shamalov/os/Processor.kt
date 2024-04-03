@@ -37,7 +37,6 @@ class Processor(val cores: UInt = DEFAULT_PROCESSOR_CORES) : AutoCloseable {
 
     companion object {
         const val DEFAULT_PROCESSOR_CORES = 1u
+        private val logger = KotlinLogging.logger("Processor")
     }
 }
-
-private val logger = KotlinLogging.logger { }
