@@ -13,26 +13,27 @@ fun main(args: Array<String>) {
         2 -> args[1].toIntOrNull()?.let { Random(it) } ?: Random.Default
         else -> Random.Default
     }
-    val runner = OSRunner(random = random)
+    val processor = Processor()
+    val runner = OSRunner(os = OperatingSystem(processor), random = random)
 
     runBlocking {
         launch(Dispatchers.IO) {
             runner.start()
         }
 
-        launch(Dispatchers.IO) {
-            when (isManualSimulation) {
-                true -> runner.simulateManually()
-                false -> runner.simulateAutomatically(random)
-            }
-            runner.emit(Action.Stop)
+        when (isManualSimulation) {
+            true -> runner.simulateManually()
+            false -> runner.simulateAutomatically(random)
         }
+
+        while (processor.currentTasksCount != 0) delay(100)
+        runner.emit(Action.Stop)
     }
 }
 
 private suspend fun OSRunner.simulateAutomatically(random: Random, tasks: UInt = 100u) {
     suspend fun suspend() {
-        delay((RUNNING_MILLIS_RANGE.random(random) * ACCELERATION_COEFFICIENT).toLong() * 3)
+        delay((RUNNING_MILLIS_RANGE.random(random) * ACCELERATION_COEFFICIENT).toLong())
     }
 
     var fuel = tasks

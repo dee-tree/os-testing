@@ -45,15 +45,20 @@ class Scheduler(val capacity: UInt = DEFAULT_QUEUE_CAPACITY, private val queue: 
         }
 
         channel.send(Unit)
-        queue.offer(task)
-        logger.debug { "$task is added to the queue | enqueued ${queue.size} tasks" }
+        withContext(dispatcher) {
+            queue.offer(task)
+            logger.debug { "$task is added to the queue | enqueued ${queue.size} tasks" }
+        }
     }
 
-    suspend fun pop(): Task { //= withContext(dispatcher) {
+    suspend fun pop(): Task {
         channel.receive()
-        val task = queue.pop()
+        val task = withContext(dispatcher) {
+            queue.pop().also { task ->
+                logger.debug { "$task is popped from the queue | enqueued ${queue.size} tasks" }
+            }
+        }
         require(task.state is State.Ready) { "Queue is broken! Expected queue containing only ready tasks, but got $task" }
-        logger.debug { "$task is popped from the queue | enqueued ${queue.size} tasks" }
         return task
     }
 
