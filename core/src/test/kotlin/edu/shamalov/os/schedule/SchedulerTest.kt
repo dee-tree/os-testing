@@ -4,10 +4,10 @@ import edu.shamalov.os.BasicTask
 import edu.shamalov.os.ExtendedState
 import edu.shamalov.os.MAX_PRIORITY
 import edu.shamalov.os.MIN_PRIORITY
+import edu.shamalov.os.PRIORITY_RANGE
 import edu.shamalov.os.Priority
 import edu.shamalov.os.State
 import edu.shamalov.os.Task
-import edu.shamalov.os.PRIORITY_RANGE
 import io.mockk.called
 import io.mockk.every
 import io.mockk.mockk
@@ -15,7 +15,10 @@ import io.mockk.spyk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -27,6 +30,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 class SchedulerTest {
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -52,7 +56,7 @@ class SchedulerTest {
         }
 
         val popped =
-            withContext(Dispatchers.Default.limitedParallelism(1)) { withTimeout(50) { scheduler.pop().await() } }
+            withContext(Dispatchers.Default.limitedParallelism(1)) { withTimeout(50) { scheduler.pop() } }
 
         assertEquals(task, popped)
         scheduler.close()
@@ -72,7 +76,7 @@ class SchedulerTest {
 
         runCatching {
             withTimeout(5000) {
-                scheduler.pop().await()
+                scheduler.pop()
                 assertTrue("should not be called") { false }
             }
             assertTrue("should not be called") { false }
@@ -146,11 +150,49 @@ class SchedulerTest {
         scheduler.offer(BasicTask(Priority.default) {}) // fictive task to update semaphore
 
         runCatching {
-            scheduler.pop().await()
+            scheduler.pop()
         }.also {
             assertTrue { it.isFailure }
             assertIs<RuntimeException>(it.exceptionOrNull())
             assertContains(it.exceptionOrNull()!!.message!!, "broken")
         }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun testMaxOffer() = runTest {
+        val queue = spyk(TasksQueue())
+        val scheduler = Scheduler(queue = queue)
+
+        runCatching {
+            withContext(Dispatchers.Default.limitedParallelism(1)) {
+                withTimeout(1.seconds) {
+                    val jobs = mutableListOf<Job>()
+                    repeat(scheduler.capacity.toInt() + 1) {
+                        jobs += launch(Dispatchers.IO) {
+                            BasicTask(Priority.default) {}.also { scheduler.offer(it) }
+                        }
+                    }
+                    jobs.joinAll()
+                }
+            }
+        }.also { assertTrue { it.isFailure } }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun testMaxOfferSingleDispatcher() = runTest {
+        val queue = spyk(TasksQueue())
+        val scheduler = Scheduler(queue = queue)
+
+        runCatching {
+            withContext(Dispatchers.Default.limitedParallelism(1)) {
+                withTimeout(1.seconds) {
+                    repeat(scheduler.capacity.toInt() + 1) {
+                        BasicTask(Priority.default) {}.also { scheduler.offer(it) }
+                    }
+                }
+            }
+        }.also { assertTrue { it.isFailure } }
     }
 }

@@ -1,7 +1,11 @@
 package edu.shamalov.os
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.withContext
 import java.util.Objects
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -31,39 +35,45 @@ abstract class Task internal constructor(
     private lateinit var job: Deferred<Unit>
 
     suspend fun onEvent(event: Event): State {
-        logger.debug { "$this received event $event" }
-        state = state.succeededBy(event)
+        logger.info { "$this received event $event" }
 
         when (event) {
             is Event.Wait -> {
                 require(this is ExtendedTask)
+                state = state.succeededBy(event)
                 withContext(Dispatchers.Unconfined) { job = async { jobPortion() } }
                 job.await()
             }
 
-            is Event.Preempt -> job.cancel(event.toString())
-            is Event.Start -> {
-                withContext(Dispatchers.Unconfined) { job = async { jobPortion() } }
-                job.await()
+            is Event.Preempt -> {
+                if (!job.isCompleted) {
+                    state = state.succeededBy(event)
+                    job.cancel(event.toString())
+                }
+            }
 
-                logger.debug { "$this finished execution" + if (this is ExtendedTask && needWaiting.get()) ", WAITING for an event" else "" }
-                if (needWaiting.get()) {
-                    onEvent(Event.Wait)
-                } else {
-                    onEvent(Event.Terminate)
+            is Event.Start -> {
+                state = state.succeededBy(event)
+                withContext(Dispatchers.Unconfined) {
+                    job = async {
+                        jobPortion()
+                        val needWait = needWaiting.get()
+                        needWaiting.set(false)
+                        if (needWait) this.cancel(Event.Wait.toString())
+                    }
                 }
 
-                require(this is ExtendedTask || state !is ExtendedState.Waiting) { "Basic task can't wait other events" }
-                needWaiting.set(false)
+                job.await()
+                return onEvent(Event.Terminate)
             }
-            else -> Unit
+
+            else -> state = state.succeededBy(event)
         }
 
         return state
     }
 
     protected fun needWaiting() {
-        require(this is ExtendedTask)
         needWaiting.set(true)
     }
 

@@ -53,7 +53,7 @@ class TaskTest {
         assertThrows<RuntimeException> { runTest { task.onEvent(Event.Wait) } }
 
         every { task.state } returns State.Running(false)
-        assertThrows<RuntimeException> { runTest { task.onEvent(Event.Wait) } }
+        assertThrows<RuntimeException> { runTest { task.onEvent(Event.Wait) } } // task must have job if it is running
     }
 
     @Test
