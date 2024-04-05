@@ -12,11 +12,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import kotlin.test.*
+import kotlin.random.Random
+import kotlin.test.Test
+import kotlin.test.assertContains
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTime
 
@@ -36,8 +44,8 @@ class OperatingSystemTest {
         os.stop()
 
         verify(exactly = 0) { scheduler.hasHigherPriorityTask(Priority.min) }
-        coVerify(exactly = 0) { scheduler.offer(any(), any()) }
-        coVerify(exactly = 1) { scheduler.pop(any()) }
+        coVerify(exactly = 0) { scheduler.offer(any()) }
+        coVerify(atLeast = 1) { scheduler.pop() }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -64,7 +72,7 @@ class OperatingSystemTest {
             withContext(Dispatchers.Default.limitedParallelism(1)) {
                 delay(100)
                 assertEquals(1, processor.currentTasksCount)
-                delay(200)
+                delay(500)
                 assertEquals(0, processor.currentTasksCount)
             }
 
@@ -73,11 +81,11 @@ class OperatingSystemTest {
 
             assertIs<State.Suspended>(task.state)
             verify(exactly = 1) { with(processor) { any<CoroutineScope>().execute(task) } }
-            coVerify(exactly = 1) { scheduler.offer(task, any()) }
+            coVerify(exactly = 1) { scheduler.offer(task) }
             clearMocks(processor, verificationMarks = true)
         }
 
-        coVerify(exactly = 3) { scheduler.pop(any()) }
+        coVerify(atLeast = 3) { scheduler.pop() }
         os.stop()
     }
 
@@ -105,7 +113,7 @@ class OperatingSystemTest {
         coEvery { task.onEvent(capture(capturedEvents)) }.coAnswers { callOriginal() }
 
         assertEquals(0, processor.currentTasksCount)
-        os.enqueueTask(task)
+        launch(Dispatchers.IO) { delay(100); os.enqueueTask(task) }
 
         withContext(Dispatchers.Default.limitedParallelism(1)) {
             measureTime {
@@ -121,8 +129,9 @@ class OperatingSystemTest {
 
         assertIs<Event.Activate>(capturedEvents[0])
         assertIs<Event.Start>(capturedEvents[1])
-        assertIs<Event.Release>(capturedEvents[2])
-        assertIs<Event.Start>(capturedEvents[3])
+        assertIs<Event.Wait>(capturedEvents[2])
+        assertIs<Event.Release>(capturedEvents[3])
+        assertIs<Event.Start>(capturedEvents[4])
 
         os.stop()
     }
@@ -194,6 +203,8 @@ class OperatingSystemTest {
         val os3 = OperatingSystem(Processor(10u), Scheduler(1u))
         assertNotEquals(os, os3)
         assertNotEquals(os.hashCode(), os3.hashCode())
+
+        assertNotEquals(os, Any())
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -207,15 +218,51 @@ class OperatingSystemTest {
         os.enqueueTask(task)
 
         withContext(Dispatchers.Default.limitedParallelism(1)) {
-            withTimeout(10.seconds) {
-                while (task.state !is State.Running);
+            withTimeout(3.seconds) {
+                while (task.state !is State.Running) delay(5)
                 assertEquals(1, proc.currentTasksCount)
 
                 os.close()
-                while (proc.currentTasksCount != 0);
+                while (proc.currentTasksCount != 0) delay(5)
                 assertEquals(0, proc.currentTasksCount)
             }
         }
 
+    }
+
+    @Test
+    fun testString() {
+        val os = OperatingSystem()
+        assertContains(os.toString(), "Operating System")
+        os.close()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun testBalance() = runTest {
+        val os = OperatingSystem()
+
+        launch(Dispatchers.IO) {
+            with(os) { start() }
+        }
+
+        val tasks = mutableListOf<Task>()
+
+        withContext(Dispatchers.Default.limitedParallelism(1)) {
+            repeat(10) {
+                val running = (10..100).random().milliseconds
+                val priority = Priority(PRIORITY_RANGE.random())
+                val task = if (Random.nextBoolean()) BasicTask(priority) { delay(running) }
+                else ExtendedTask(priority) { if (Random.nextBoolean()) null else suspend { delay(running) } }
+                tasks += task
+
+                delay(running * 3)
+                os.enqueueTask(task)
+            }
+        }
+
+        withContext(Dispatchers.Default.limitedParallelism(1)) { delay(100) }
+        while (tasks.any { it.state !is State.Suspended });
+        os.close()
     }
 }
